@@ -1,8 +1,8 @@
 # Ignore all images
-img/
+img/*
 *.img
 *.img.gz
 
 # Ignore logs
-log/
+log/*
 *.log
