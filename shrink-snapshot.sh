@@ -3,8 +3,9 @@
 version="v0.1.2"
 
 CURRENT_DIR=$(pwd)
-SCRIPTNAME="${0##*/}"
-LOGFILE=${CURRENT_DIR}/${SCRIPTNAME%.*}.log
+SCRIPTNAME="$0"
+
+LOGFILE=$CURRENT_DIR/log/${SCRIPTNAME%.*}-$(date +%Y%m%d).log
 
 function info() {
   echo "$SCRIPTNAME: $1..."
@@ -109,7 +110,7 @@ if [ "$debug" = true ]; then
   exec 2> >(stdbuf -i0 -o0 -e0 tee -a "$LOGFILE" >&2)
 fi
 
-echo "${0##*/} $version"
+echo "$0 $version"
 
 #Args
 src="$1"
@@ -123,7 +124,7 @@ if [[ ! -f "$img" ]]; then
   error $LINENO "$img is not a file..."
   exit -2
 fi
-if ((EUID != 0)); then
+if [[ $EUID -ne 0 ]]; then
   error $LINENO "You need to be running as root."
   exit -3
 fi
@@ -166,31 +167,21 @@ blocksize=$(echo "$tune2fs_output" | grep '^Block size:' | tr -d ' ' | cut -d ':
 
 logVariables $LINENO tune2fs_output currentsize blocksize
 
+
 #Check if we should make pi expand rootfs on next boot
 if [ "$should_skip_autoexpand" = false ]; then
   #Make pi expand rootfs on next boot
   mountdir=$(mktemp -d)
   mount "$loopback" "$mountdir"
 
+  echo "asdfasdfasdf $loopback"
+  echo "asdfasdfasdf $mountdir"
+  exit 0
+
   if [ "$(md5sum "$mountdir/etc/rc.local" | cut -d ' ' -f 1)" != "0542054e9ff2d2e0507ea1ffe7d4fc87" ]; then
     echo "Creating new /etc/rc.local"
     mv "$mountdir/etc/rc.local" "$mountdir/etc/rc.local.bak"
-    #####Do not touch the following lines#####
-    cat <<\EOF1 >"$mountdir/etc/rc.local"
-
-
-
-
-
-
-
-
-
-
-
-
-EOF1
-    #####End no touch zone#####
+    mv $CURRENT_DIR/src/rc.local-01_expand_partition.sh $mountdir/etc/rc.local
     chmod +x "$mountdir/etc/rc.local"
   fi
   umount "$mountdir"
