@@ -1,0 +1,145 @@
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Transitional//EN' 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd'>
+<html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en-US' lang='en-US'>
+<head>
+<meta http-equiv='Content-Type' content='text/html;charset=utf-8' />
+<title>GParted Details</title>
+</head>
+<body>
+<p>GParted 0.32.0 --enable-libparted-dmraid --enable-online-resize</p>
+<p>Libparted 3.2</p>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<b>Shrink /dev/sdc2 from 14.71 GiB to 5.88 GiB</b>&nbsp;&nbsp;00:00:08&nbsp;&nbsp;&nbsp;&nbsp;( SUCCESS )
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td>
+<table border='0'>
+<tr>
+<td colspan='2'>
+calibrate /dev/sdc2&nbsp;&nbsp;00:00:01&nbsp;&nbsp;&nbsp;&nbsp;( SUCCESS )
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<i>path: /dev/sdc2 (partition)<br />start: 264192<br />end: 31114240<br />size: 30850049 (14.71 GiB)</i>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<table border='0'>
+<tr>
+<td colspan='2'>
+check file system on /dev/sdc2 for errors and (if possible) fix them&nbsp;&nbsp;00:00:05&nbsp;&nbsp;&nbsp;&nbsp;( SUCCESS )
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<b><i>e2fsck -f -y -v -C 0 &apos;/dev/sdc2&apos;</i></b>&nbsp;&nbsp;00:00:05&nbsp;&nbsp;&nbsp;&nbsp;( SUCCESS )
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<i>Pass 1: Checking inodes, blocks, and sizes<br />Pass 2: Checking directory structure                                           <br />Pass 3: Checking directory connectivity                                        <br />Pass 4: Checking reference counts<br />Pass 5: Checking group summary information<br />                                                                               <br />      230702 inodes used (23.87%, out of 966656)<br />        1150 non-contiguous files (0.5%)<br />         426 non-contiguous directories (0.2%)<br />             # of inodes with ind/dind/tind blocks: 0/0/0<br />             Extent depth histogram: 177413/547<br />     1188228 blocks used (30.81%, out of 3856256)<br />           0 bad blocks<br />           1 large file<br /><br />      150293 regular files<br />       21515 directories<br />          54 character device files<br />          25 block device files<br />           0 fifos<br />          32 links<br />       58805 symbolic links (52653 fast symbolic links)<br />           1 socket<br />------------<br />      230725 files<br /></i>
+</td>
+</tr>
+</table>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<i>e2fsck 1.45.3 (14-Jul-2019)<br /></i>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<table border='0'>
+<tr>
+<td colspan='2'>
+shrink file system&nbsp;&nbsp;00:00:02&nbsp;&nbsp;&nbsp;&nbsp;( SUCCESS )
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<b><i>resize2fs -p &apos;/dev/sdc2&apos; 6170624K</i></b>&nbsp;&nbsp;00:00:02&nbsp;&nbsp;&nbsp;&nbsp;( SUCCESS )
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<i>Resizing the filesystem on /dev/sdc2 to 1542656 (4k) blocks.<br />Begin pass 3 (max = 118)<br />Scanning inode table          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX<br />The filesystem on /dev/sdc2 is now 1542656 (4k) blocks long.<br /><br /></i>
+</td>
+</tr>
+</table>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<i>resize2fs 1.45.3 (14-Jul-2019)<br /></i>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<table border='0'>
+<tr>
+<td colspan='2'>
+shrink partition from 14.71 GiB to 5.88 GiB&nbsp;&nbsp;00:00:00&nbsp;&nbsp;&nbsp;&nbsp;( SUCCESS )
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<i>old start: 264192<br />old end: 31114240<br />old size: 30850049 (14.71 GiB)</i>
+</td>
+</tr>
+</table>
+<table border='0'>
+<tr>
+<td colspan='2'>
+<i>new start: 264192<br />new end: 12605439<br />new size: 12341248 (5.88 GiB)</i>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<p>========================================</p>
+</body>
+</html>
