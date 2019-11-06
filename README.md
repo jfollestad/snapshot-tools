@@ -1,6 +1,6 @@
 # snapshot-tools
 
-snapshot-tools is based on https://github.com/Drewsif/PiShrink
+snapshot-tools is inspired by https://github.com/Drewsif/PiShrink
 
     # PiShrink #
 
