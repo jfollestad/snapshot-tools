@@ -76,7 +76,6 @@ function check_new_file() {
     else
         echo "changing in place"
     fi
-
 }
 
 function setup_traps() {
@@ -145,7 +144,7 @@ function checkFilesystem() {
     exit -9
 }
 
-function check_fs_size() {
+function get_minsize() {
     #TODO What is this?
     if ! minsize=$(sudo resize2fs -P "$loopback"); then
         rc=$?
