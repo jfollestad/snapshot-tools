@@ -1,7 +1,7 @@
 #!/bin/bashg
 
 function local_cleanup() {
-    umount_loop
+    loop_umount
     loop_cleanup
 }
 
@@ -31,58 +31,106 @@ function check_new_file() {
     fi
 }
 
-loop_setup() {
-    p2_start_sector=$(sfdisk -J img/tmp.img | jq ".partitiontable.partitions[1].start")
+function gather_pre_loop_info() {
+    echo ""
+}
+
+function loop_setup() {
+    p2_start_sector=$(sfdisk -J $image | jq ".partitiontable.partitions[1].start")
+    echo "p2_start_sector: $p2_start_sector"
+
     p2_start=$(($p2_start_sector * 512))
     echo "p2_start: $p2_start"
 
-    loopback=$(sudo losetup -f --show -o "$p2_start" "$image")
-    echo "Loopback: $loopback"
+    #Create loop
+    loopdevice=$(sudo losetup -f --show -o "$p2_start" "$image")
+    echo "loopdevice: $loopdevice"
 
     #check filesystem
-    sudo e2fsck -pf "$loopback"
+    sudo e2fsck -pf "$loopdevice"
+    echo "e2fsck: $?" #If not catched, this causes an error later. Unknown why.
 }
 
-loop_cleanup() {
-    if losetup "$loopback" &>/dev/null; then
-        sudo losetup -d "$loopback"
+function loop_cleanup() {
+    if losetup "$loopdevice" &>/dev/null; then
+        sudo losetup -d "$loopdevice"
     fi
 }
 
-mount_loop() {
-    sudo mount "$loopback" "$mountdir"
+function loop_mount() {
+    mountdir=$(mktemp -d)
+    sudo mount "$loopdevice" "$mountdir"
 }
 
-umount_loop() {
+function loop_umount() {
     if [ -n "$mountdir" ]; then
         sudo umount "$mountdir"
+        mountdir=""
     fi
 }
 
 function gather_info() {
-    p2_size=$(sudo blockdev --getsize64 "$loopback") && echo "p2 old size: $old_size"
-    p2_block_size=$(sudo blockdev --getbsz "$loopback") && echo "p2_block_size: $p2_block_size"
-    p2_size_sectors=$(sudo blockdev --getsz "$loopback") && echo "p2_size_sectors: $p2_size_sectors"30850049
-    p2_minsize_string=$(sudo resize2fs -P "$loopback")
-    p2_minsize_blocks=$(cut -d ':' -f 2 <<<"$p2_minsize_string" | tr -d ' ') && echo "p2_minsize_blocks: $p2_minsize_blocks"
-    extra_space_blocks="32768" #128MB
+    p2_size=$(sudo blockdev --getsize64 "$loopdevice")
+    echo "p2_size: $p2_size"
+
+    p2_block_size=$(sudo blockdev --getbsz "$loopdevice")
+    echo "p2_block_size: $p2_block_size"
+
+    p2_size_sectors=$(sudo blockdev --getsz "$loopdevice")
+    echo "p2_size_sectors: $p2_size_sectors"
+
+    p2_minsize_blocks=$(sudo resize2fs -P "$loopdevice" | awk '{print $NF}')
+    echo "p2_minsize_blocks: $p2_minsize_blocks"
+
+    extra_space_blocks=$((134217728 / $p2_block_size)) # 128MB / blocksize
+    echo "extra_space_blocks: $extra_space_blocks"
+
     p2_new_size_blocks=$(($p2_minsize_blocks + $extra_space_blocks))
-    p2_new_size_byte=$(($p2_new_size_blocks * $p2_block_size))
+    echo "p2_new_size_blocks: $p2_new_size_blocks"
+
     p2_new_size_sectors=$(($p2_new_size_blocks * 8)) && echo "p2_new_size_blocks: $p2_new_size_blocks"
+    echo "p2_new_size_sectors: $p2_new_size_sectors"
+
+    part_new_size_sectors=$(( $p2_start_sector + $p2_new_size_sectors))
+
+    part_new_size_byte=$(($part_new_size_sectors * 512 ))
+    echo "part_new_size_byte: $part_new_size_byte"
 }
 
-main() {
+function clear_free_space() {
+    echo "Zeroing space..."
+    dd if=/dev/zero of=$mountdir/home/odroid/null.file bs=512
+    ls -lh $mountdir/home/odroid
+    rm $mountdir/home/odroid/null.file
+    ls -lh $mountdir/home/odroid
+    echo "... and done zeroing space."
+}
+
+function insert_autoresize_files() {
+    scriptpath=$(dirname $(realpath $0))
+    sudo touch $mountdir/.firstboot
+    sudo cp $scriptpath/src/aafirstboot $mountdir/
+}
+
+function main() {
     #TRAAAAPS!
     setup_traps
 
-    #INput
+    #Input
     parse "$@"
 
     #clean away old file
-    #rm "$output"
+    if [ -n "$output" ]; then
+        echo "Removing old outputfile..."
+        rm "$output"
+        echo "...gone."
+    fi
 
     #make new copy?
     check_new_file
+
+    # Gather pre loop info
+    gather_pre_loop_info
 
     # Create the loop device
     loop_setup
@@ -91,48 +139,21 @@ main() {
     gather_info
 
     #resize the filesystem
-    sudo resize2fs -p "$loopback" $p2_new_size_blocks
+    sudo resize2fs -p "$loopdevice" $p2_new_size_blocks
+
+    #clear free space
+    loop_mount
+    clear_free_space
+    insert_autoresize_files
+    loop_umount
 
     loop_cleanup
 
-    echo "start= $p2_start_sector, size= $p2_new_size_sectors" | sfdisk -N 2 img/tmp.img
+    echo "start= $p2_start_sector, size= $p2_new_size_sectors" | sfdisk -N 2 $image &>log/resize.log
 
-    truncate -s $p2_new_size_byte img/tmp.img
+    truncate -s $part_new_size_byte $image
 
-    exit 0
-
-    #Shrink partition
-    partnewsize=$(($minsize * $blocksize))
-    newpartend=$(($partstart + $partnewsize))
-    echo $LINENO partnewsize newpartend
-    if [ ! sudo parted -s -a minimal "$image" rm "$partnum" ]; then
-        rc=$?
-        echo $LINENO "parted failed with rc $rc"
-        exit -13
-    fi
-    exit
-
-    if ! sudo parted -s "$image" unit B mkpart primary "$partstart" "$newpartend"; then
-        rc=$?
-        echo $LINENO "parted failed with rc $rc"
-        exit -14
-    fi
-
-    #Truncate the file
-    info "Shrinking image"
-    if ! endresult=$(parted -ms "$img" unit B print free); then
-        rc=$?
-        echo $LINENO "parted failed with rc $rc"
-        exit -15
-    fi
-
-    endresult=$(tail -1 <<<"$endresult" | cut -d ':' -f 2 | tr -d 'B')
-    logVariables $LINENO endresult
-    if ! truncate -s "$endresult" "$image"; then
-        rc=$?
-        echo $LINENO "trunate failed with rc $rc"
-        exit -16
-    fi
+    echo "Done."
 }
 
 # If this file is run directly and not sourced, run main().
@@ -140,4 +161,3 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
     exit 0
 fi
-30850049
