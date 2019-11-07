@@ -15,6 +15,14 @@ function parse() {
     output="$2"
 }
 
+function check_usage() {
+    if [ -n "$output" ]; then
+        echo "Removing old outputfile..."
+        rm "$output"
+        echo "...gone."
+    fi
+}
+
 function check_new_file() {
     #Copy to new file if requested
     if [ -n "$output" ]; then
@@ -32,20 +40,20 @@ function check_new_file() {
 }
 
 function gather_pre_loop_info() {
-    echo ""
-}
-
-function loop_setup() {
     p2_start_sector=$(sfdisk -J $image | jq ".partitiontable.partitions[1].start")
     echo "p2_start_sector: $p2_start_sector"
 
     p2_start=$(($p2_start_sector * 512))
     echo "p2_start: $p2_start"
+}
 
+function loop_setup() {
     #Create loop
     loopdevice=$(sudo losetup -f --show -o "$p2_start" "$image")
     echo "loopdevice: $loopdevice"
+}
 
+function check_filesystem() {
     #check filesystem
     sudo e2fsck -pf "$loopdevice"
     echo "e2fsck: $?" #If not catched, this causes an error later. Unknown why.
@@ -65,7 +73,7 @@ function loop_mount() {
 function loop_umount() {
     if [ -n "$mountdir" ]; then
         sudo umount "$mountdir"
-        mountdir=""
+        unset mountdir
     fi
 }
 
@@ -91,18 +99,16 @@ function gather_info() {
     p2_new_size_sectors=$(($p2_new_size_blocks * 8)) && echo "p2_new_size_blocks: $p2_new_size_blocks"
     echo "p2_new_size_sectors: $p2_new_size_sectors"
 
-    part_new_size_sectors=$(( $p2_start_sector + $p2_new_size_sectors))
+    part_new_size_sectors=$(($p2_start_sector + $p2_new_size_sectors))
 
-    part_new_size_byte=$(($part_new_size_sectors * 512 ))
+    part_new_size_byte=$(($part_new_size_sectors * 512))
     echo "part_new_size_byte: $part_new_size_byte"
 }
 
 function clear_free_space() {
-    echo "Zeroing space..."
+    echo "Writing zeroes in unused space..."
     dd if=/dev/zero of=$mountdir/home/odroid/null.file bs=512
-    ls -lh $mountdir/home/odroid
     rm $mountdir/home/odroid/null.file
-    ls -lh $mountdir/home/odroid
     echo "... and done zeroing space."
 }
 
@@ -112,46 +118,53 @@ function insert_autoresize_files() {
     sudo cp $scriptpath/src/aafirstboot $mountdir/
 }
 
-function main() {
-    #TRAAAAPS!
-    setup_traps
-
-    #Input
-    parse "$@"
-
-    #clean away old file
-    if [ -n "$output" ]; then
-        echo "Removing old outputfile..."
-        rm "$output"
-        echo "...gone."
-    fi
-
-    #make new copy?
-    check_new_file
-
-    # Gather pre loop info
-    gather_pre_loop_info
-
-    # Create the loop device
-    loop_setup
-
-    #Gather all the info
-    gather_info
-
+function resize_fs() {
     #resize the filesystem
     sudo resize2fs -p "$loopdevice" $p2_new_size_blocks
+}
 
-    #clear free space
+function resize_part() {
+    #Resize partition
+    echo "start= $p2_start_sector, size= $p2_new_size_sectors" | sfdisk -N 2 $image &>log/resize.log
+}
+
+function resize_file() {
+    #Reduce filesize
+    truncate -s $part_new_size_byte $image
+}
+
+function compress_image() {
+    if [ $gzip_compress = true ]; then
+        echo "Gzipping the shrunken image..."
+        pv "$image" | gzip -f9 >"$image.gz"
+        if [ $? = true ]; then
+            rm "$image"
+        fi
+    fi
+}
+
+function main() {
+    setup_traps
+    parse "$@"
+    check_usage
+
+    check_new_file
+    gather_pre_loop_info
+    loop_setup
+    gather_info
+
+    # mount, clear, set up autoresize, and unmount
     loop_mount
     clear_free_space
     insert_autoresize_files
     loop_umount
-
     loop_cleanup
 
-    echo "start= $p2_start_sector, size= $p2_new_size_sectors" | sfdisk -N 2 $image &>log/resize.log
-
-    truncate -s $part_new_size_byte $image
+    # resize for each step, and compress
+    resize_fs
+    resize_part
+    resize_file
+    compress_image
 
     echo "Done."
 }
