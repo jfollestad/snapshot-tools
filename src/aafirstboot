@@ -1,12 +1,4 @@
 #! /bin/sh
-### BEGIN INIT INFO
-# Provides:          aafirstboot
-# Required-Start:    $remote_fs $all
-# Required-Stop:
-# Default-Start:     2 3 4 5 S
-# Default-Stop:
-# Short-Description: First boot system setup
-### END INIT INFO
 
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 

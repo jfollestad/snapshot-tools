@@ -1,5 +1,12 @@
 #!/bin/bashg
 
+#TODO Logfile
+#TODO echoes
+#TODO add line-number to errors? echo -n "$SCRIPTNAME: ERROR occured in line $1: "
+#TODO $LINENO
+#TODO basename $0
+#TODO dirname
+
 function local_cleanup() {
     loop_umount
     loop_cleanup
@@ -10,17 +17,53 @@ function setup_traps() {
     trap local_cleanup ERR EXIT
 }
 
+function usage() {
+    echo "Usage: $0 [-sdrpzh] imagefile.img [newimagefile.img]"
+    echo ""
+    echo "  -s: Skip autoexpand"
+    echo "  -d: Debug mode on"
+    echo "  -r: Use advanced repair options"
+    echo "  -z: Gzip compress image after shrinking"
+    echo "  -h: display help text"
+}
+
 function parse() {
+    while getopts ":sdzh" opt; do
+        case "${opt}" in
+        s) skip_autoexpand=true ;;
+        d) debug=true ;;
+        z) gzip_compress=true ;;
+        h) help ;;
+        *) usage ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+
     input="$1"
     output="$2"
 }
 
+function set_defaults() {
+    skip_autoexpand=false
+    debug=false
+    gzip_compress=false
+}
+
 function check_usage() {
-    if [ -n "$output" ]; then
+    if [[ -z "$img" ]]; then
+        usage
+    fi
+    if [[ ! -f "$img" ]]; then
+        echo $LINENO "$img is not a file..."
+        exit 1
+    fi
+    if [ -n "$output" ]; then #TODO check if force is active, and ask for user intervention.
         echo "Removing old outputfile..."
         rm "$output"
         echo "...gone."
     fi
+    #TODO Logfile?
+
 }
 
 function check_new_file() {
@@ -55,8 +98,12 @@ function loop_setup() {
 
 function check_filesystem() {
     #check filesystem
-    sudo e2fsck -pf "$loopdevice"
+    sudo e2fsck -p -f -y -v -C 0 "$loopdevice"
     echo "e2fsck: $?" #If not catched, this causes an error later. Unknown why.
+    if [[ ! $? < 4 ]]; then
+        echo "Filesystem recoveries failed."
+        exit 1
+    fi
 }
 
 function loop_cleanup() {
@@ -90,6 +137,12 @@ function gather_info() {
     p2_minsize_blocks=$(sudo resize2fs -P "$loopdevice" | awk '{print $NF}')
     echo "p2_minsize_blocks: $p2_minsize_blocks"
 
+    #TODO Make the following check work
+    #if [[ $currentsize -eq $minsize ]]; then
+    #    error $LINENO "Image already shrunk to smallest size"
+    #    exit -11
+    #fi
+
     extra_space_blocks=$((134217728 / $p2_block_size)) # 128MB / blocksize
     echo "extra_space_blocks: $extra_space_blocks"
 
@@ -113,6 +166,7 @@ function clear_free_space() {
 }
 
 function insert_autoresize_files() {
+    #TODO Check if skip is true
     scriptpath=$(dirname $(realpath $0))
     sudo touch $mountdir/.firstboot
     sudo cp $scriptpath/src/aafirstboot $mountdir/
@@ -121,16 +175,20 @@ function insert_autoresize_files() {
 function resize_fs() {
     #resize the filesystem
     sudo resize2fs -p "$loopdevice" $p2_new_size_blocks
+    #TODO Check for success/fail
+    #TODO Remove the autosizefiles if the above fails?
 }
 
 function resize_part() {
     #Resize partition
     echo "start= $p2_start_sector, size= $p2_new_size_sectors" | sfdisk -N 2 $image &>log/resize.log
+    #TODO Check for success/fail
 }
 
 function resize_file() {
     #Reduce filesize
     truncate -s $part_new_size_byte $image
+    #TODO Check for success/fail
 }
 
 function compress_image() {
@@ -141,6 +199,10 @@ function compress_image() {
             rm "$image"
         fi
     fi
+}
+
+function bragging() {
+    #TODO Print size in the beginning vs. the end.
 }
 
 function main() {
