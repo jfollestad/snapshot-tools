@@ -15,13 +15,19 @@ start)
 		# ok, its the very first boot, we need to resize the disk.
 		p2_start=$(fdisk -l $dev | grep p2 | awk '{print $2}')
 		p2_finish=$(($(fdisk -l $dev | grep Disk | grep sectors | awk '{printf $7}') - 2048))
-		partition=$(mktemp)
-		sudo sfdisk -d /dev/mmcblk1 > $partition
-		p2_finish_current=$(cat $partition | tail -1 | awk '{print $6}' | tr -d ',')
-		sed -i 's/$p2_finish_current/$p2_finish/g' $partition
 
-		sfdisk --force $dev < $partition
-
+		fdisk $dev <<EOF &>>/fdisk.log
+p
+d
+2
+n
+p
+2
+$p2_start
+$p2_finish
+p
+w
+EOF
 		rm -fr /.first_boot
 		[ ! -f /etc/ssh/ssh_host_rsa_key ] && dpkg-reconfigure openssh-server
 		sync

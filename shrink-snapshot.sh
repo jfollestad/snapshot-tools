@@ -27,14 +27,26 @@ function usage() {
     echo "  -h: display help text"
 }
 
+function set_defaults() {
+    skip_autoexpand=false
+    debug=false
+    gzip_compress=false
+}
+
 function parse() {
     while getopts ":sdzh" opt; do
         case "${opt}" in
         s) skip_autoexpand=true ;;
         d) debug=true ;;
         z) gzip_compress=true ;;
-        h) help ;;
-        *) usage ;;
+        h)
+            usage
+            exit 0
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
         esac
     done
     shift $((OPTIND - 1))
@@ -43,21 +55,16 @@ function parse() {
     output="$2"
 }
 
-function set_defaults() {
-    skip_autoexpand=false
-    debug=false
-    gzip_compress=false
-}
-
 function check_usage() {
-    if [[ -z "$img" ]]; then
+    if [[ -z "$input" ]]; then
         usage
     fi
-    if [[ ! -f "$img" ]]; then
-        echo $LINENO "$img is not a file..."
+    if [[ ! -f "$input" ]]; then
+        echo $LINENO "$input is not a file..."
         exit 1
     fi
     if [ -n "$output" ]; then #TODO check if force is active, and ask for user intervention.
+        #TODO test if a file exists first
         echo "Removing old outputfile..."
         rm "$output"
         echo "...gone."
@@ -67,6 +74,7 @@ function check_usage() {
 }
 
 function check_new_file() {
+    #TODO Duplicate of the above function?
     #Copy to new file if requested
     if [ -n "$output" ]; then
         echo "Copying $input to $output..."
@@ -96,16 +104,6 @@ function loop_setup() {
     echo "loopdevice: $loopdevice"
 }
 
-function check_filesystem() {
-    #check filesystem
-    sudo e2fsck -p -f -y -v -C 0 "$loopdevice"
-    echo "e2fsck: $?" #If not catched, this causes an error later. Unknown why.
-    if [[ ! $? < 4 ]]; then
-        echo "Filesystem recoveries failed."
-        exit 1
-    fi
-}
-
 function loop_cleanup() {
     if losetup "$loopdevice" &>/dev/null; then
         sudo losetup -d "$loopdevice"
@@ -121,6 +119,16 @@ function loop_umount() {
     if [ -n "$mountdir" ]; then
         sudo umount "$mountdir"
         unset mountdir
+    fi
+}
+
+function check_filesystem() {
+    #check filesystem
+    sudo e2fsck -fy "$loopdevice"
+    echo "e2fsck: $?" #If not catched, this causes an error later. Unknown why.
+    if [[ ! $? < 4 ]]; then
+        echo "Filesystem recoveries failed."
+        exit 1
     fi
 }
 
@@ -160,19 +168,23 @@ function gather_info() {
 
 function clear_free_space() {
     echo "Writing zeroes in unused space..."
-    dd if=/dev/zero of=$mountdir/home/odroid/null.file bs=512
-    rm $mountdir/home/odroid/null.file
+    sudo dd if=/dev/zero | pv | sudo dd of="$mountdir/null.file" bs=512
+    sudo rm $mountdir/null.file
     echo "... and done zeroing space."
 }
 
 function insert_autoresize_files() {
     #TODO Check if skip is true
+    echo "adding auto resize on boot files..."
     scriptpath=$(dirname $(realpath $0))
-    sudo touch $mountdir/.firstboot
+    sudo touch $mountdir/.first_boot
     sudo cp $scriptpath/src/aafirstboot $mountdir/
+    sudo rm $mountdir/resize.log
+    echo "... done."
 }
 
 function resize_fs() {
+    echo "resizing filesystem"
     #resize the filesystem
     sudo resize2fs -p "$loopdevice" $p2_new_size_blocks
     #TODO Check for success/fail
@@ -180,15 +192,18 @@ function resize_fs() {
 }
 
 function resize_part() {
+    echo "resizing partition"
     #Resize partition
     echo "start= $p2_start_sector, size= $p2_new_size_sectors" | sfdisk -N 2 $image &>log/resize.log
     #TODO Check for success/fail
 }
 
 function resize_file() {
+    echo "resizing file"
     #Reduce filesize
     truncate -s $part_new_size_byte $image
     #TODO Check for success/fail
+    echo "... done."
 }
 
 function compress_image() {
@@ -202,28 +217,34 @@ function compress_image() {
 }
 
 function bragging() {
+    return 0
     #TODO Print size in the beginning vs. the end.
 }
 
 function main() {
     setup_traps
+    set_defaults
     parse "$@"
     check_usage
-
     check_new_file
+
     gather_pre_loop_info
     loop_setup
+    check_filesystem
     gather_info
 
     # mount, clear, set up autoresize, and unmount
     loop_mount
-    clear_free_space
     insert_autoresize_files
     loop_umount
-    loop_cleanup
 
     # resize for each step, and compress
+    check_filesystem
     resize_fs
+    loop_mount
+    clear_free_space
+    loop_umount
+    loop_cleanup
     resize_part
     resize_file
     compress_image
