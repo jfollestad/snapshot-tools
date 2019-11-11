@@ -5,24 +5,35 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 . /lib/init/vars.sh
 . /lib/lsb/init-functions
 
-dev_p2=$(blkid -U e139ce78-9841-40fe-8823-96a304a09859)
+#dev_p2=$(blkid -U e139ce78-9841-40fe-8823-96a304a09859)
+dev_p2=$(blkid -L "rootfs")
 dev=${dev_p2%??}
 
 if [ -f /.first_boot ]; then
-	# OK, its the very first boot, we need to resize the disk.
-	p2_start=$(fdisk -l $dev | grep p2 | awk '{print $2}')
-	p2_finish=$(($(fdisk -l $dev | grep Disk | grep sectors | awk '{printf $7}') - 2048))
-	p2_size=$(($p2_finish - $p2_start))
+	{
+		# It's the very first boot; We need to resize the disk.
+		p2_start=$(fdisk -l $dev | grep p2 | awk '{print $2}')
+		p2_finish=$(($(fdisk -l $dev | grep Disk | grep sectors | awk '{printf $7}') - 2048))
+		p2_size=$(($p2_finish - $p2_start))
 
-	echo "start= $p2_start, size= $p2_size" | sfdisk --force -N 2 $dev &>/sfdisk.log
+		echo "start= $p2_start, size= $p2_size" | sfdisk --force -N 2 $dev
 
-	rm -fr /.first_boot
-	[ ! -f /etc/ssh/ssh_host_rsa_key ] && dpkg-reconfigure openssh-server
-	sync
-	reboot
+		rm -fr /.first_boot
+		if [ -f /.reset_host_ssh_keys ]; then
+			rm -fr /.reset_host_ssh_keys
+			rm -vf /etc/ssh/ssh_host_*
+		fi
+		if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
+			dpkg-reconfigure openssh-server
+		fi
+		sync
+		reboot
+	} &>>/sfdisk.log
 else
-	# We already resized, time to expand the filesystem!
-	log_daemon_msg "Resizing /" &&
-		resize2fs $dev_p2 &>/resize2fs.log &&
-		rm -fr /aafirstboot
+	{
+		# We already resized; It's time to expand the filesystem!
+		log_daemon_msg "Resizing /" &&
+			resize2fs $dev_p2 &&
+			rm -fr /aafirstboot
+	} &>>/resize2fs.log
 fi

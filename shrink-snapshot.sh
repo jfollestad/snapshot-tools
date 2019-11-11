@@ -22,7 +22,7 @@ function usage() {
     echo ""
     echo "  -s: Skip autoexpand"
     echo "  -d: Debug mode on"
-    echo "  -r: Use advanced repair options"
+    echo "  -r: Reset host ssh keys"
     echo "  -z: Gzip compress image after shrinking"
     echo "  -h: display help text"
 }
@@ -31,6 +31,7 @@ function set_defaults() {
     skip_autoexpand=false
     debug=false
     gzip_compress=false
+    reset_host_ssh_keys=false
 }
 
 function parse() {
@@ -38,6 +39,7 @@ function parse() {
         case "${opt}" in
         s) skip_autoexpand=true ;;
         d) debug=true ;;
+        r) reset_host_ssh_keys=true ;;
         z) gzip_compress=true ;;
         h)
             usage
@@ -183,6 +185,13 @@ function insert_autoresize_files() {
     echo "... done."
 }
 
+function reset_ssh() {
+    if [ $reset_host_ssh_keys = true ]; then
+        echo "Creating /.reset_host_ssh_keys"
+        sudo touch $mountdir/.reset_host_ssh_keys
+    fi
+}
+
 function resize_fs() {
     echo "resizing filesystem"
     #resize the filesystem
@@ -236,6 +245,7 @@ function main() {
     # mount, clear, set up autoresize, and unmount
     loop_mount
     insert_autoresize_files
+    reset_ssh
     loop_umount
 
     # resize for each step, and compress
