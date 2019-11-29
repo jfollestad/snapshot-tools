@@ -1,0 +1,12 @@
+{
+   "partitiontable": {
+      "label":"dos",
+      "id":"0x3cedfd53",
+      "device":"img/tmp.img",
+      "unit":"sectors",
+      "partitions": [
+         {"node":"img/tmp.img1", "start":2048, "size":262144, "type":"c"},
+         {"node":"img/tmp.img2", "start":264192, "size":30850049, "type":"83"}
+      ]
+   }
+}

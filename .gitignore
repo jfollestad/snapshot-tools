@@ -1,0 +1,8 @@
+# Ignore all images
+img/*
+*.img
+*.img.gz
+
+# Ignore logs
+log/*
+*.log
